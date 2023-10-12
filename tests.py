@@ -1,8 +1,10 @@
 
 import unittest
 
-from password_breakers import BruteForcePasswordCracker, DictionaryPasswordCracker
+from password_breakers import BruteForcePasswordCracker, DictionaryPasswordCracker, calculate_word_stats
 
+
+# tests are not exhaustive, or particularly extensive. Just testing the key bits to make sure it works.
 
 class TestBruteForce(unittest.TestCase):
 
@@ -76,7 +78,7 @@ class TestDictionary(unittest.TestCase):
 
     def test_generate_variations(self):
         password = 'ababa'
-        self.cracker.substitutions = {'b': ['c']}
+        self.cracker.substitutions = {'b': ['b', 'c']}
         self.cracker._variations = []
         self.cracker._generate_variations(password)
 
@@ -107,7 +109,7 @@ class TestDictionary(unittest.TestCase):
         self.assertEqual(self.cracker.crack_password(), 'P4ssw0rd')
 
         self.cracker.set_password('Ch3Ls3a')  # Chelsea with subsitutions and capitalisations
-        self.assertEqual(self.cracker.crack_password(), 'Chelsea')
+        self.assertEqual(self.cracker.crack_password(), 'Ch3Ls3a')
 
     def test_crack_password_multiprocessing(self):
         self.cracker.add_lowers()
@@ -115,6 +117,24 @@ class TestDictionary(unittest.TestCase):
         self.cracker.add_numbers()
         self.cracker.set_password('P4ssw0rd')  # 'password' with P, a and 0 substituted
         self.assertEqual(self.cracker.crack_password_multiprocess(), 'P4ssw0rd')
+
+
+class TestWordStats(unittest.TestCase):
+
+    def test_stats(self):
+        self.assertDictEqual(calculate_word_stats('password'), {
+            'lowers': 8,
+            'uppers': 0,
+            'numbers': 0,
+            'repeats': {'s': 2},
+        })
+
+        self.assertDictEqual(calculate_word_stats('Ch3lS3a'), {
+            'lowers': 3,
+            'uppers': 2,
+            'numbers': 2,
+            'repeats': {'3': 2},
+        })
 
 
 if __name__ == '__main__':

@@ -1,30 +1,26 @@
-from datetime import datetime
-
-from password_breakers import BruteForcePasswordCracker, DictionaryPasswordCracker, TimeMe
+from password_breakers import BruteForcePasswordCracker, DictionaryPasswordCracker, TimeMe, print_word_stats
 
 
 if __name__ == '__main__':
-    # Note: for BruteForcePassword bf, 4 chars takes 1s, and every additional char takes ~30x longer
-
     dc = DictionaryPasswordCracker()
-    dc.add_lowers()
-    dc.add_uppers()
-    dc.add_numbers()
-    dc.set_password('Ch3Ls3A')
+    dc.set_password()
 
     with TimeMe() as timer:
         cracked = dc.crack_password()
 
     if cracked:
         print(f'{timer.time_elapsed} seconds taken, {dc.check_count} variations checked')
+        print_word_stats(cracked)
     else:
-        print('Dictionary attack failed, resorting to brute force...')
+        print(f'Dictionary attack failed in {timer.time_elapsed} seconds, resorting to brute force...')
         bf = BruteForcePasswordCracker()
         bf.add_lowers()
         bf.add_uppers()
         bf.add_numbers()
+        bf.add_symbols()
         bf.set_password(dc.password)
 
         with TimeMe() as timer:
             cracked = bf.crack_password()
         print(f'{timer.time_elapsed} seconds taken, {bf.check_count} variations checked')
+        print_word_stats(cracked)

@@ -65,6 +65,41 @@ class PasswordCrackerBase:
             return os.remove(self.stop_path)
 
 
+def calculate_word_stats(word):
+    # a sumarised view of a password, without exposing what it actually is
+    # we report this to the user after they find out their password strength
+    count_lowers = len([char for char in word if char in 'abcdefghijklmnopqrstuvwxyz'])
+    count_uppers = len([char for char in word if char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'])
+    count_numbers = len([char for char in word if char in '0123456789'])
+    char_counts = {}
+    for char in word:
+        if char in char_counts:
+            char_counts[char] += 1
+        else:
+            char_counts[char] = 1
+
+    repeats = {key: value for key, value in char_counts.items() if value > 1}
+
+    return {
+        'lowers': count_lowers,
+        'uppers': count_uppers,
+        'numbers': count_numbers,
+        'repeats': repeats,
+    }
+
+
+def print_word_stats(word):
+    stats = calculate_word_stats(word)
+    if stats['lowers']:
+        print(f'Password has {stats["lowers"]} lower-case character(s).')
+    if stats['uppers']:
+        print(f'Password has {stats["uppers"]} upper-case character(s).')
+    if stats['numbers']:
+        print(f'Password has {stats["numbers"]} number(s).')
+    if stats['repeats']:
+        print(f'Password has {len(stats["repeats"])} character(s) repeated at least once.')
+
+
 class TimeMe:
     def __enter__(self):
         self.dt1 = datetime.utcnow()
@@ -94,6 +129,7 @@ class BruteForcePasswordCracker(PasswordCrackerBase):
             guess = self._get_guess(i)
             i += inc
 
+            # multiprocessing early exit clause
             count += 1
             if count % 1000 == 0:
                 if self._check_stop():
@@ -123,11 +159,19 @@ class DictionaryPasswordCracker(PasswordCrackerBase):
         passwords = [password.strip() for password in passwords if password]
         self.passwords = passwords
 
+        # set up allowable substitutions
         self.substitutions = {char: [char, char.upper()] for char in list('abcdefghijklmnopqrstuvwxyz')}
         for char, sub in (
             ('a', '4'), ('e', '3'), ('i', '1'), ('o', '0'), ('s', 'S'),
         ):
             self.substitutions[char].append(sub)
+
+        # allow any characters for passwords. Not really applicable to DictionaryCracker -> more of use for BruteForce
+        # However we still validate password based on allowable chars (e.g. exclude emojis), so keep in
+        self.add_lowers()
+        self.add_uppers()
+        self.add_numbers()
+        self.add_symbols()
 
     def set_password(self, password=''):
         self._variations = []
@@ -157,34 +201,38 @@ class DictionaryPasswordCracker(PasswordCrackerBase):
             string = self._replace(string, idx, char)
         return string
 
-    def _generate_variations(self, word, idx=0, current_variation=''):
+    def _generate_variations(self, word, idx=0, current=''):
         if idx == len(word):
-            self._variations.append(current_variation)
+            self._variations.append(current)
             return
         
         char = word[idx]
 
         if char in self.substitutions:
             for sub_char in self.substitutions[char]:
-                self._generate_variations(word, idx + 1, current_variation + sub_char)
+                self._generate_variations(word, idx + 1, current + sub_char)
         else:
-            self._generate_variations(word, idx + 1, current_variation + char)
+            self._generate_variations(word, idx + 1, current + char)
 
     def crack_password(self, i=0, inc=1):
         self._remove_stop()
         count = 0
         for password in self.passwords[i::inc]:
-            for variation in self._generate_variations(password):
-                count += 1
-                if variation == self.password:
-                    self._write_stop(variation)
-                    self.check_count = count
-                    return variation
-                
-                if count % 1000 == 0:
-                    if self._check_stop():
+            self._generate_variations(password)
+            for variation in self._variations:
+                for trailing in ['', '!', '!!', '?', '*']:
+                    count += 1
+                    guess = f'{variation}{trailing}'
+                    if guess == self.password:
+                        self._write_stop(guess)
                         self.check_count = count
-                        return
+                        return guess
+
+                    # multiprocessing early exit clause                    
+                    if count % 1000 == 0:
+                        if self._check_stop():
+                            self.check_count = count
+                            return
 
     def crack_password_multiprocess(self, workers=1):
         with ProcessPoolExecutor(max_workers=workers) as pool:
