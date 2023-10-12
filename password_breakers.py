@@ -156,13 +156,13 @@ class DictionaryPasswordCracker(PasswordCrackerBase):
         super().__init__()
         with open(passwords_path) as f:
             passwords = f.read().split('\n')[1:]
-        passwords = [password.strip() for password in passwords if password]
+        passwords = [password.strip().lower() for password in passwords if password]
         self.passwords = passwords
 
         # set up allowable substitutions
         self.substitutions = {char: [char, char.upper()] for char in list('abcdefghijklmnopqrstuvwxyz')}
         for char, sub in (
-            ('a', '4'), ('e', '3'), ('i', '1'), ('o', '0'), ('s', 'S'),
+            ('a', '4'), ('e', '3'), ('i', '1'), ('o', '0'), ('s', '5'), ('z', '2'), 
         ):
             self.substitutions[char].append(sub)
 
@@ -218,21 +218,24 @@ class DictionaryPasswordCracker(PasswordCrackerBase):
         self._remove_stop()
         count = 0
         for password in self.passwords[i::inc]:
+            self._variations = []
             self._generate_variations(password)
             for variation in self._variations:
-                for trailing in ['', '!', '!!', '?', '*']:
-                    count += 1
+                
+                # Add some trailing punctuation marks - very primitive method to inject symbols but better than nothing
+                for trailing in ('', '!', '!!', '?'):
                     guess = f'{variation}{trailing}'
+                    count += 1
                     if guess == self.password:
                         self._write_stop(guess)
                         self.check_count = count
                         return guess
 
-                    # multiprocessing early exit clause                    
-                    if count % 1000 == 0:
-                        if self._check_stop():
-                            self.check_count = count
-                            return
+                # multiprocessing early exit clause                    
+                if count % 1000 == 0:
+                    if self._check_stop():
+                        self.check_count = count
+                        return
 
     def crack_password_multiprocess(self, workers=1):
         with ProcessPoolExecutor(max_workers=workers) as pool:
