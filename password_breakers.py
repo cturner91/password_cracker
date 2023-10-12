@@ -1,4 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor
+from datetime import datetime
+import getpass
 from itertools import combinations
 import os
 
@@ -38,9 +40,12 @@ class PasswordCrackerBase:
         self.chars.extend(list('!@£$%^&*()€#,./;\'\\[]{}:"|?><'))
         self._update_length()
 
-    def set_password(self, password):
+    def set_password(self, password=''):
         if not self.chars:
             raise ValueError('Must set some allowable characters first')
+
+        if not password:
+            password = getpass.getpass('Enter password: ')
 
         for letter in password:
             if letter not in self.chars:
@@ -56,7 +61,18 @@ class PasswordCrackerBase:
             f.write(password)
 
     def _remove_stop(self):
-        return os.remove(self.stop_path)
+        if self._check_stop():
+            return os.remove(self.stop_path)
+
+
+class TimeMe:
+    def __enter__(self):
+        self.dt1 = datetime.utcnow()
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.dt2 = datetime.utcnow()
+        self.time_elapsed = (self.dt2-self.dt1).total_seconds()
 
 
 class BruteForcePasswordCracker(PasswordCrackerBase):
@@ -71,6 +87,7 @@ class BruteForcePasswordCracker(PasswordCrackerBase):
         return output
 
     def crack_password(self, i=0, inc=1):
+        self._remove_stop()
         guess = ''
         count = 0
         while guess != self.password:
@@ -148,6 +165,7 @@ class DictionaryPasswordCracker(PasswordCrackerBase):
                         yield new_password
 
     def crack_password(self, i=0, inc=1):
+        self._remove_stop()
         count = 0
         for password in self.passwords[i::inc]:
             for variation in self._get_variations(password):
