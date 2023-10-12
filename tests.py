@@ -74,20 +74,22 @@ class TestDictionary(unittest.TestCase):
     def test_replace_all(self):
         self.assertEqual('zzz', self.cracker._replace_all('abc', [0, 1, 2], 'z'))
 
-    def test_get_variations(self):
+    def test_generate_variations(self):
         password = 'ababa'
         self.cracker.substitutions = {'b': ['c']}
-        combinations = list(self.cracker._get_variations(password))
+        self.cracker._variations = []
+        self.cracker._generate_variations(password)
 
         for expected in (
             'ababa', 'acaba', 'abaca', 'acaca'
         ):
-            self.assertIn(expected, combinations)
+            self.assertIn(expected, self.cracker._variations)
 
-    def test_get_variations2(self):
+    def test_generate_variations2(self):
         password = 'abcabc'
-        self.cracker.substitutions = {'a': ['z', 'y']}
-        combinations = list(self.cracker._get_variations(password))
+        self.cracker.substitutions = {'a': ['a', 'z', 'y']}
+        self.cracker._variations = []
+        self.cracker._generate_variations(password)
 
         for expected in (
             'abcabc', 
@@ -95,7 +97,7 @@ class TestDictionary(unittest.TestCase):
             'ybcabc', 'abcybc', 'ybcybc',
             #'zbcybc', 'ybczbc',  # code does not do combinations of substitutions (yet)
         ):
-            self.assertIn(expected, combinations)
+            self.assertIn(expected, self.cracker._variations)
 
     def test_crack_password(self):
         self.cracker.add_lowers()
@@ -103,6 +105,9 @@ class TestDictionary(unittest.TestCase):
         self.cracker.add_numbers()
         self.cracker.set_password('P4ssw0rd')  # 'password' with P, a and 0 substituted
         self.assertEqual(self.cracker.crack_password(), 'P4ssw0rd')
+
+        self.cracker.set_password('Ch3Ls3a')  # Chelsea with subsitutions and capitalisations
+        self.assertEqual(self.cracker.crack_password(), 'Chelsea')
 
     def test_crack_password_multiprocessing(self):
         self.cracker.add_lowers()

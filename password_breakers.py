@@ -123,11 +123,15 @@ class DictionaryPasswordCracker(PasswordCrackerBase):
         passwords = [password.strip() for password in passwords if password]
         self.passwords = passwords
 
-        self.substitutions = {char: [char.upper()] for char in list('abcdefghijklmnopqrstuvwxyz')}
+        self.substitutions = {char: [char, char.upper()] for char in list('abcdefghijklmnopqrstuvwxyz')}
         for char, sub in (
             ('a', '4'), ('e', '3'), ('i', '1'), ('o', '0'), ('s', 'S'),
         ):
             self.substitutions[char].append(sub)
+
+    def set_password(self, password=''):
+        self._variations = []
+        return super().set_password(password)
 
     def _get_idxs(self, string, char):
         return [i for i,ichar in enumerate(string) if ichar==char]
@@ -153,22 +157,24 @@ class DictionaryPasswordCracker(PasswordCrackerBase):
             string = self._replace(string, idx, char)
         return string
 
-    def _get_variations(self, password):
-        yield password
-        for char, subs in self.substitutions.items():
-            idxs = self._get_idxs(password, char)
-            if idxs:
-                combis = self._get_combinations(idxs)
-                for combi in combis:
-                    for sub in subs:
-                        new_password = self._replace_all(password, combi, sub)
-                        yield new_password
+    def _generate_variations(self, word, idx=0, current_variation=''):
+        if idx == len(word):
+            self._variations.append(current_variation)
+            return
+        
+        char = word[idx]
+
+        if char in self.substitutions:
+            for sub_char in self.substitutions[char]:
+                self._generate_variations(word, idx + 1, current_variation + sub_char)
+        else:
+            self._generate_variations(word, idx + 1, current_variation + char)
 
     def crack_password(self, i=0, inc=1):
         self._remove_stop()
         count = 0
         for password in self.passwords[i::inc]:
-            for variation in self._get_variations(password):
+            for variation in self._generate_variations(password):
                 count += 1
                 if variation == self.password:
                     self._write_stop(variation)
